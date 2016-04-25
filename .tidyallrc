@@ -1,0 +1,6 @@
+[PerlTidy]
+select = **/*.{pm,t}
+select = bin/*
+argv = --profile=$ROOT/.perltidyrc
+
+
