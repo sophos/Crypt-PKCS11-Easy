@@ -50,6 +50,14 @@ has key => (
 
 );
 
+has has_softhsm2 => (
+    is      => 'ro',
+    lazy    => 1,
+    default => sub {
+        return can_run('softhsm2-util');
+    },
+);
+
 has _softhsm_util => (
     is      => 'ro',
     lazy    => 1,

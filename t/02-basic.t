@@ -6,6 +6,15 @@ use Path::Tiny;
 
 with 'CommonTest';
 
+sub BUILD {
+    my $self = shift;
+
+    if (!$self->has_softhsm2) {
+        plan skip_all => 'SoftHSM2 is required to run these tests';
+    }
+
+}
+
 test info => sub {
     my $self = shift;
 
