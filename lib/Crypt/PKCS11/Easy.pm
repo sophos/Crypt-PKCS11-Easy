@@ -7,9 +7,11 @@ use Crypt::PKCS11 qw/:constant_names :constant/;
 use Crypt::PKCS11::Attributes;
 use Log::Any '$log';
 use Path::Tiny;
+use Safe::Isa;
 use Try::Tiny;
+use Types::Standard 'Str';
+use Types::Path::Tiny 'AbsFile';
 use version;
-use Sub::Quote;
 use Moo;
 use namespace::clean;
 
@@ -19,8 +21,9 @@ use experimental 'smartmatch';
 
 String. Required.
 
-The name of the PKCS#11 module to use. Just use the base name of the library
-and the rest will be handled automagically. e.g.
+The name of the PKCS#11 module to use. Either pass the full path to the module,
+or just pass the base name of the library and the rest will be handled
+automagically. e.g.
 
   libsofthsm2          => /usr/lib64/pkcs11/libsofthsm2.so
   libCryptoki2_64      => /usr/lib64/pkcs11/libCryptoki2_64.so
@@ -31,7 +34,36 @@ and the rest will be handled automagically. e.g.
 has module => (
     is       => 'ro',
     required => 1,
-    isa => quote_sub(q{ die 'module is not defined' unless defined $_[0] }),
+    isa      => Str,
+);
+
+has _module => (
+    is      => 'ro',
+    lazy    => 1,
+    default => sub {
+        my $self = shift;
+
+        # is module already a Path::Tiny object?
+        return $self->module if $self->module->$_isa('Path::Tiny');
+
+        # does module look like a path?
+        return path($self->module)->absolute if $self->module =~ m|/|;
+
+        # TODO care about non-linux?
+        # just a string, lets try to find a module
+        my $module_name = sprintf '%s.so', $self->module;
+        my $full_module_path;
+        for (@{$self->_module_dirs}) {
+            next unless $_->child($module_name)->is_file;
+            $full_module_path = $_->child($module_name);
+        }
+        if (!$full_module_path) {
+            die 'Unable to find a module for ' . $self->module;
+        }
+        return $full_module_path;
+    },
+
+    isa => AbsFile,
 );
 
 =attr C<rw>
@@ -116,14 +148,24 @@ has _default_mech => (
     },
 );
 
-has _module_dir => (
+has _module_dirs => (
     is      => 'ro',
+    lazy    => 1,
     default => sub {
 
         # TODO non-64 bit, an array of alternatives, override...
-        my $md = path '/usr/lib64/pkcs11/';
-        die "Invalid pkcs11 module dir $md" unless $md->is_dir;
-        return $md;
+        my @possible_paths = ('/usr/lib64/pkcs11/');
+        my @paths;
+        for (@possible_paths) {
+            my $path = path $_;
+            push @paths, $path if $path->is_dir;
+        }
+
+        if (scalar @paths == 0) {
+            die "No valid module paths found\n";
+        }
+
+        return \@paths;
     });
 
 has _flags => (
@@ -183,22 +225,18 @@ sub _build__pkcs11 {
 
     $log->debug('Initialising PKCS#11...');
 
-    # TODO care about non-linux...?
-    my $module_name = sprintf '%s.so', $self->module;
-    my $module_path = $self->_module_dir->child($module_name);
-    die "Unable to find $module_path" unless $module_path->is_file;
-
     # Create the main PKCS #11 object, load a PKCS #11 provider .so library and initialize the module
     my $pkcs11 = Crypt::PKCS11->new;
 
-    $pkcs11->load($module_path)
-      or die "Failed to load PKCS11 module $module_path: " . $pkcs11->errstr;
+    $pkcs11->load($self->_module)
+      or die sprintf "Failed to load PKCS11 module [%s]: %s\n",
+      $self->_module, $pkcs11->errstr;
 
     $pkcs11->Initialize
-      or die "Failed to initialize PKCS11 module $module_path: "
-      . $pkcs11->errstr;
+      or die sprintf "Failed to initialize PKCS11 module [%s]: %s\n",
+      $self->_module, $pkcs11->errstr;
 
-    $log->debug("Loaded PKCS#11 module: $module_name");
+    $log->debug("Loaded PKCS#11 module: " . $self->_module);
 
     return $pkcs11;
 }
