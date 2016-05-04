@@ -4,7 +4,7 @@ Crypt::PKCS11::Easy - Wrapper around Crypt::PKCS11 to make using a HSM not suck
 
 # VERSION
 
-version 0.161160
+version 0.161250
 
 # SYNOPSIS
 
@@ -92,8 +92,9 @@ created for each function.
 
 String. Required.
 
-The name of the PKCS#11 module to use. Just use the base name of the library
-and the rest will be handled automagically. e.g.
+The name of the PKCS#11 module to use. Either pass the full path to the module,
+or just pass the base name of the library and the rest will be handled
+automagically. e.g.
 
     libsofthsm2          => /usr/lib64/pkcs11/libsofthsm2.so
     libCryptoki2_64      => /usr/lib64/pkcs11/libCryptoki2_64.so
@@ -137,6 +138,10 @@ to access a token, a coderef that returns it, or a file that contains it.
     $pin = path '/secure/file/with/password'
 
     $pin = '1234';
+
+## `module_dirs`
+
+Array of paths to check for PKCS#11 modules.
 
 # METHODS
 
@@ -245,6 +250,8 @@ mechanisms for that slot will be retrieved. Otherwise, the slot id in ["slot"](#
 Will return a hashref of available mechanisms. If a slot id is specifed, the
 mechanisms for that slot will be retrieved. Otherwise, the slot id in ["slot"](#slot)
  will be used if there is one.
+
+# STATUS
 
 # DIAGNOSTICS
 
