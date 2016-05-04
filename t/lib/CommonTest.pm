@@ -63,7 +63,7 @@ has _softhsm_util => (
     lazy    => 1,
     default => sub {
         my $p = can_run 'softhsm2-util';
-        BAIL_OUT "softhsm2-util not found, cannot contiunue" unless $p;
+        BAIL_OUT "softhsm2-util not found, cannot continue" unless $p;
         return path $p;
     },
 );
@@ -73,7 +73,7 @@ has _openssl => (
     lazy    => 1,
     default => sub {
         my $p = can_run 'openssl';
-        BAIL_OUT "openssl not found, cannot contiunue" unless $p;
+        BAIL_OUT "openssl not found, cannot continue" unless $p;
         return path $p;
     },
 );
