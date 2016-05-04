@@ -9,7 +9,7 @@ use Log::Any '$log';
 use Path::Tiny;
 use Safe::Isa;
 use Try::Tiny;
-use Types::Standard 'Str';
+use Types::Standard qw/ArrayRef Str/;
 use Types::Path::Tiny 'AbsFile';
 use version;
 use Moo;
@@ -129,6 +129,19 @@ to access a token, a coderef that returns it, or a file that contains it.
 
 has pin => (is => 'ro', required => 0);
 
+=attr C<module_dirs>
+
+Array of paths to check for PKCS#11 modules.
+
+=cut
+
+has module_dirs => (
+    is      => 'ro',
+    lazy    => 1,
+    isa     => ArrayRef,
+    default => sub { ['/usr/lib64/pkcs11/'] },
+);
+
 has _pkcs11 => (is => 'rwp');
 
 has _key => (is => 'lazy');
@@ -152,21 +165,16 @@ has _module_dirs => (
     is      => 'ro',
     lazy    => 1,
     default => sub {
-
-        # TODO non-64 bit, an array of alternatives, override...
-        my @possible_paths = ('/usr/lib64/pkcs11/');
+        my $self = shift;
         my @paths;
-        for (@possible_paths) {
-            my $path = path $_;
+        for (@{$self->module_dirs}) {
+            my $path = path($_)->absolute;
             push @paths, $path if $path->is_dir;
         }
-
-        if (scalar @paths == 0) {
-            die "No valid module paths found\n";
-        }
-
+        die "No valid module paths found\n" if scalar @paths == 0;
         return \@paths;
-    });
+    },
+);
 
 has _flags => (
     is      => 'ro',
