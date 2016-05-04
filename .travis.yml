@@ -10,10 +10,12 @@ perl:
   - "5.22"
   - "dev"
   - "blead"
+env:
+  - AUTHOR_TESTING=0
 matrix:
   include:
     - perl: 5.22
-      env: COVERAGE=1   # enables coverage+coveralls reporting
+      env: COVERAGE=1 AUTHOR_TESTING=0
   allow_failures:
     - perl: blead       # ignore failures for blead perl
 sudo: false             # faster builds as long as you don't need sudo access
