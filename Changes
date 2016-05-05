@@ -1,0 +1,13 @@
+Changelog for Crypt-PKCS11-Easy
+
+0.161260 2016-05-05T15:07:36Z
+ - Commit build results (Ioan Rogers)
+
+0.161250 2016-05-04T21:33:16Z
+ - [Closes #2] Allow setting module_dirs (Ioan Rogers)
+ - [Closes #1] allow passing full module paths instead of relying on
+   automagic (Ioan Rogers)
+ - Improvements to test suite
+
+0.161160 2016-04-25T15:37:28Z
+ - First public release
