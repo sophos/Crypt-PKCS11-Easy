@@ -139,7 +139,12 @@ has module_dirs => (
     is      => 'ro',
     lazy    => 1,
     isa     => ArrayRef,
-    default => sub { ['/usr/lib64/pkcs11/'] },
+    default => sub {
+        [
+            '/usr/lib64/pkcs11/', '/usr/lib/pkcs11',
+            '/usr/lib/x86_64-linux-gnu/pkcs11/'
+        ];
+    },
 );
 
 has _pkcs11 => (is => 'rwp');
