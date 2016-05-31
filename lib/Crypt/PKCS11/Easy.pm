@@ -427,9 +427,9 @@ sub get_slot {
 
                 # last;
             }
-            die "Unable to find slot containing token labelled '$arg{token}'"
-              unless $slot;
         }
+        die "Unable to find slot containing token labelled '$arg{token}'"
+          unless $slot;
     }
 
     # strip whitespace padding
