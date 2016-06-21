@@ -591,31 +591,87 @@ sub get_verification_key {
     return $self->_get_key($label, $tmpl);
 }
 
+sub _get_pss_params {
+    my ($self, $hash, $sig_length) = @_;
+
+    $log->debug("Finding params for a $hash RSA PSS signature");
+
+    my $pss_param = Crypt::PKCS11::CK_RSA_PKCS_PSS_PARAMS->new;
+
+    no strict 'refs';    ## no critic
+    my $hash_const = "Crypt::PKCS11::CKM_$hash";
+    $log->debug("Hash constant: $hash_const");
+
+    my $r = $pss_param->set_hashAlg($hash_const->());
+    if ($r != CKR_OK) {
+        die 'Failed to set hash algorithm for PSS params: '
+          . Crypt::PKCS11::XS::rv2str($r);
+    }
+
+    $r = $pss_param->set_sLen($sig_length);
+    if ($r != CKR_OK) {
+        die 'Failed to set sLen on PSS params: '
+          . Crypt::PKCS11::XS::rv2str($r);
+    }
+
+    my $mgf_const = "Crypt::PKCS11::CKG_MGF1_$hash";
+    $log->debug("MGF constant: $mgf_const");
+
+    $r = $pss_param->set_mgf($mgf_const->());
+    if ($r != CKR_OK) {
+        die 'Failed to set MGF on PSS params: '
+          . Crypt::PKCS11::XS::rv2str($r);
+    }
+
+    return $pss_param;
+}
+
 sub _handle_common_args {
-    my $args = shift;
+    my ($self, $args) = @_;
 
-    return if $args->{data};
-    die 'Missing filename or data' unless $args->{file};
-
-    my $file = delete $args->{file};
-
-    # a filename or a Path::Tiny object
-    if (!ref $file) {
-        $file = path $file;
-    } elsif (ref $file ne 'Path::Tiny') {
-        die "Don't know how to handle a " . ref $file;
+    unless (exists $args->{file} || exists $args->{data}) {
+        die 'Missing filename or data';
     }
-    $args->{data} = $file->slurp_raw;
 
-    if ($args->{mech}) {
-        $args->{mech} =~ s/-/_/g;
-        my $const = 'Crypt::PKCS11::CKM_' . $args->{mech};
-        $log->debug("Attempting to use mechanism: $const");
-        no strict 'refs';    ## no critic
-        my $mech = Crypt::PKCS11::CK_MECHANISM->new;
-        $mech->set_mechanism($const->());
-        $args->{mech} = $mech;
+    # first, we check if data is coming via a file and read it in
+    if ($args->{file}) {
+        my $file = delete $args->{file};
+
+        # a filename or a Path::Tiny object
+        if (!ref $file) {
+            $file = path $file;
+        } elsif (ref $file ne 'Path::Tiny') {
+            die "Don't know how to handle a " . ref $file;
+        }
+        $args->{data} = $file->slurp_raw;
     }
+
+    return unless exists $args->{mech};
+
+    # Check if a non-default mechanism is requested
+
+    $args->{mech} =~ s/-/_/g;
+    my $const = 'Crypt::PKCS11::CKM_' . $args->{mech};
+    $log->debug("Attempting to use mechanism: $const");
+    no strict 'refs';    ## no critic
+    my $mech = Crypt::PKCS11::CK_MECHANISM->new;
+    $mech->set_mechanism($const->());
+
+    # does this mechanism need parameters?
+    my $params;
+    if ($args->{mech} =~ /(^SHA\d+)_RSA_PKCS_PSS$/) {
+        $params = $self->_get_pss_params($1, length $args->{data});
+    }
+
+    if ($params) {
+        my $r = $mech->set_pParameter($params->toBytes);
+        if ($r != CKR_OK) {
+            die 'Failed to set params for mechanism: '
+              . Crypt::PKCS11::XS::rv2str($r);
+        }
+    }
+
+    $args->{mech} = $mech;
 
     return;
 }
@@ -636,7 +692,7 @@ leading 'CKM_'.
 sub sign {
     my ($self, %args) = @_;
 
-    _handle_common_args(\%args);
+    $self->_handle_common_args(\%args);
 
     if (!$args{mech}) {
         $args{mech} = Crypt::PKCS11::CK_MECHANISM->new;
@@ -694,7 +750,7 @@ sub verify {
     my ($self, %args) = @_;
 
     die 'Missing signature' unless $args{sig};
-    _handle_common_args(\%args);
+    $self->_handle_common_args(\%args);
 
     if (!$args{mech}) {
         $args{mech} = Crypt::PKCS11::CK_MECHANISM->new;
@@ -722,7 +778,7 @@ Returns a binary digest. Parameters are the same as L</sign>.
 sub digest {
     my ($self, %args) = @_;
 
-    _handle_common_args(\%args);
+    $self->_handle_common_args(\%args);
 
     if (!$args{mech}) {
         $args{mech} = Crypt::PKCS11::CK_MECHANISM->new;
@@ -753,7 +809,7 @@ a binary signature. Returns true or false.
 sub decode_signature {
     my ($self, %args) = @_;
 
-    _handle_common_args(\%args);
+    $self->_handle_common_args(\%args);
 
     require MIME::Base64;
 
