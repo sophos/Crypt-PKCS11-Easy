@@ -4,7 +4,7 @@ Crypt::PKCS11::Easy - Wrapper around Crypt::PKCS11 to make using a HSM not suck
 
 # VERSION
 
-version 0.161250
+version 0.161750
 
 # SYNOPSIS
 
