@@ -599,7 +599,10 @@ sub _get_pss_params {
     my $pss_param = Crypt::PKCS11::CK_RSA_PKCS_PSS_PARAMS->new;
 
     no strict 'refs';    ## no critic
-    my $hash_const = "Crypt::PKCS11::CKM_$hash";
+    my $hash_const = 'Crypt::PKCS11::CKM_';
+
+    # SHA1 is a special case
+    $hash_const .= $hash eq 'SHA1' ? 'SHA_1' : $hash;
     $log->debug("Hash constant: $hash_const");
 
     my $r = $pss_param->set_hashAlg($hash_const->());
