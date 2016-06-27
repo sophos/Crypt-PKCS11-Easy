@@ -205,6 +205,20 @@ has _flags => (
 
 has [qw/_token_flags _mechanism_flags _slot_flags/] => (is => 'lazy');
 
+has _sig_length => (
+    is      => 'ro',
+    lazy    => 1,
+    default => sub {
+        {
+            1   => 20,
+            224 => 28,
+            256 => 32,
+            384 => 48,
+            512 => 64,
+        };
+    },
+);
+
 sub _build__mechanism_flags {
     _flags_to_hash($_[0]->_flags->{mechanism});
 }
@@ -592,9 +606,19 @@ sub get_verification_key {
 }
 
 sub _get_pss_params {
-    my ($self, $hash, $sig_length) = @_;
+    my ($self, $hash, $hash_number) = @_;
 
     $log->debug("Finding params for a $hash RSA PSS signature");
+
+    # comes in bits, need bytes. Instead of simply dividing by 8 we use a mapping
+    # hash to verify that the length is correct
+    my $sig_length = $self->_sig_length->{$hash_number};
+    unless ($sig_length) {
+        die
+          'Unsupported hash type: not SHA1/SHA2-224/SHA2-256/SHA2-384/SHA2-512';
+    }
+
+    $log->debug("slen $sig_length");
 
     my $pss_param = Crypt::PKCS11::CK_RSA_PKCS_PSS_PARAMS->new;
 
@@ -662,8 +686,8 @@ sub _handle_common_args {
 
     # does this mechanism need parameters?
     my $params;
-    if ($args->{mech} =~ /(^SHA\d+)_RSA_PKCS_PSS$/) {
-        $params = $self->_get_pss_params($1, length $args->{data});
+    if ($args->{mech} =~ /(^SHA(\d+))_RSA_PKCS_PSS$/) {
+        $params = $self->_get_pss_params($1, $2);
     }
 
     if ($params) {
