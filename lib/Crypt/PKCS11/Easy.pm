@@ -159,9 +159,11 @@ has _default_mech => (
     is      => 'ro',
     default => sub {
         {
-            sign   => CKM_SHA1_RSA_PKCS,
-            verify => CKM_SHA1_RSA_PKCS,
-            digest => CKM_SHA_1,
+            digest  => CKM_SHA_1,
+            encrypt => CKM_RSA_PKCS,
+            sign    => CKM_SHA1_RSA_PKCS,
+            verify  => CKM_SHA1_RSA_PKCS,
+
         };
     },
 );
@@ -281,6 +283,7 @@ sub _build__key {
     given ($self->function) {
         return $self->get_signing_key($self->key) when 'sign';
         return $self->get_verification_key($self->key) when 'verify';
+        return $self->get_encryption_key($self->key) when 'encrypt';
         default {
             die "Unknown key type: " . $self->function;
         }
@@ -605,6 +608,28 @@ sub get_verification_key {
     return $self->_get_key($label, $tmpl);
 }
 
+=method C<get_encryption_key(Str $label)>
+
+Will look for a key matching with a label matching C<$label> which can be used
+for encryption.
+
+The returned key is a L<Crypt::PKCS11::Object>.
+
+=cut
+
+sub get_encryption_key {
+    my ($self, $label) = @_;
+
+    $log->debug('Looking for an encryption key');
+
+    my $tmpl =
+      Crypt::PKCS11::Attributes->new->push(
+        Crypt::PKCS11::Attribute::Encrypt->new->set(1),
+      );
+
+    return $self->_get_key($label, $tmpl);
+}
+
 sub _get_pss_params {
     my ($self, $hash, $hash_number) = @_;
 
@@ -653,6 +678,46 @@ sub _get_pss_params {
     return $pss_param;
 }
 
+sub _get_oaep_params {
+    my ($self) = @_;
+
+    # SHA1 is the only one supported for now as it is the only one supported by
+    # openssl and softhsm2
+    # https://github.com/openssl/openssl/blob/master/crypto/rsa/rsa_oaep.c
+    # https://github.com/pspacek/SoftHSMv2/blob/master/src/lib/SoftHSM.cpp#L10173
+    my $hash = 'SHA1';
+
+    $log->debug('Finding params for an RSA OAEP encryption');
+
+    my $oaep_param = Crypt::PKCS11::CK_RSA_PKCS_OAEP_PARAMS->new;
+
+    no strict 'refs';    ## no critic
+    my $hash_const = 'Crypt::PKCS11::CKM_';
+
+    # SHA1 is a special case
+    $hash_const .= $hash eq 'SHA1' ? 'SHA_1' : $hash;
+    $log->debug("Hash constant: $hash_const");
+
+    my $r = $oaep_param->set_hashAlg($hash_const->());
+    if ($r != CKR_OK) {
+        die 'Failed to set hash algorithm for OAEP params: '
+          . Crypt::PKCS11::XS::rv2str($r);
+    }
+
+    my $mgf_const = "Crypt::PKCS11::CKG_MGF1_$hash";
+    $log->debug("MGF constant: $mgf_const");
+
+    $r = $oaep_param->set_mgf($mgf_const->());
+    if ($r != CKR_OK) {
+        die 'Failed to set MGF on OAEP params: '
+          . Crypt::PKCS11::XS::rv2str($r);
+    }
+
+    $oaep_param->set_source(CKZ_DATA_SPECIFIED);
+
+    return $oaep_param;
+}
+
 sub _handle_common_args {
     my ($self, $args) = @_;
 
@@ -686,12 +751,19 @@ sub _handle_common_args {
 
     # does this mechanism need parameters?
     my $params;
-    if ($args->{mech} =~ /(^SHA(\d+))_RSA_PKCS_PSS$/) {
-        $params = $self->_get_pss_params($1, $2);
+    given ($args->{mech}) {
+        when (/^(SHA(\d+))_RSA_PKCS_PSS$/) {
+            $params = $self->_get_pss_params($1, $2);
+        }
+        when (/^RSA_PKCS_OAEP$/) {
+            $params = $self->_get_oaep_params;
+        }
+        default { $log->debug('No extra params required for this mech') }
     }
 
     if ($params) {
         my $r = $mech->set_pParameter($params->toBytes);
+
         if ($r != CKR_OK) {
             die 'Failed to set params for mechanism: '
               . Crypt::PKCS11::XS::rv2str($r);
@@ -899,6 +971,41 @@ sub get_mechanisms {
         $name => $self->get_mechanism_info($_, $slot_id);
     } @$mech_list;
     return \%mech;
+}
+
+=method C<encrypt((data => 'some data' | file => '/path'), mech => 'RSA_PKCS'?)>
+
+Returns encrypted data. The data to be encrypted is either passed as a scalar
+in C<data>, or in C<file> which can be a string path or a L<Path::Tiny> object.
+
+A PKCS#11 mechanism can optionally be specified as a string and without the
+leading 'CKM_'.
+
+  my $encrypted_data = $hsm->sign(file => $file, mech => 'RSA_PKCS');
+  my $encrypted_data = $hsm->sign(data => 'SIGN ME');
+
+=cut
+
+sub encrypt {
+    my ($self, %args) = @_;
+
+    $self->_handle_common_args(\%args);
+
+    if (!$args{mech}) {
+        $args{mech} = Crypt::PKCS11::CK_MECHANISM->new;
+        $args{mech}->set_mechanism($self->_default_mech->{encrypt});
+    }
+
+    # TODO check key size and size of data to be encrypted and look up max sizes for mechanism
+    # XXX trying to encrypt data that is too big returns a CKR_GENERAL_ERROR, which is super-unhelpful
+
+    $self->_session->EncryptInit($args{mech}, $self->_key)
+      or die "Failed to init encryption: " . $self->_session->errstr;
+
+    my $encrypted_data = $self->_session->Encrypt($args{data})
+      or die "Failed to encrypt: " . $self->_session->errstr;
+
+    return $encrypted_data;
 }
 
 1;

@@ -8,6 +8,16 @@ use Test::TempDir::Tiny;
 use Path::Tiny;
 use IPC::Cmd 0.92 qw/can_run run run_forked/;
 
+has _openssl => (
+    is      => 'ro',
+    lazy    => 1,
+    default => sub {
+        my $p = can_run 'openssl';
+        BAIL_OUT "openssl not found, cannot continue" unless $p;
+        return path $p;
+    },
+);
+
 has workdir => (
     is      => 'ro',
     clearer => 1,
@@ -90,7 +100,8 @@ sub _build_pkcs11 {
 }
 
 sub _new_pkcs11 {
-    my ($self, $key, $slot, $func) = @_;
+    my $self = shift;
+    my %args = @_;
 
     my $mod = 'Crypt::PKCS11::Easy';
 
@@ -100,9 +111,10 @@ sub _new_pkcs11 {
 
     my $args = [module => 'libsofthsm2'];
 
-    push @$args, key      => $key  if $key;
-    push @$args, slot     => $slot if defined $slot;
-    push @$args, function => $func if defined $func;
+    push @$args, key      => $args{key}  if $args{key};
+    push @$args, slot     => $args{slot} if defined $args{slot};
+    push @$args, function => $args{func} if $args{func};
+    push @$args, mech     => $args{mech} if $args{mech};
     push @$args, pin      => '1234';
 
     my $obj = new_ok $mod => $args;
@@ -141,10 +153,28 @@ sub openssl_verify {
         $self->_openssl, 'dgst',       '-sha1',   '-verify',
         $key_file,       '-signature', $sig_file, $data_file
     ];
-    my $output = run_forked $openssl_cmd,
-      {verbose => $ENV{TEST_DEBUG}, child_stdin => $data_file->slurp_raw};
 
+    return run command => $openssl_cmd, verbose => $ENV{TEST_DEBUG};
+}
+
+sub openssl_decrypt {
+    my ($self, $private_key_file, $encrypted_data, $mech) = @_;
+
+    my $openssl_cmd =
+      [$self->_openssl, 'rsautl', '-decrypt', '-inkey', $private_key_file];
+
+    if ($mech eq 'RSA_PKCS') {
+        push @$openssl_cmd, '-pkcs';
+    } elsif ($mech eq 'RSA_PKCS_OAEP') {
+        push @$openssl_cmd, '-oaep';
+    } else {
+        die "Unsupported mech: $mech";
+    }
+
+    my $output = run_forked $openssl_cmd,
+      {verbose => $ENV{TEST_DEBUG}, child_stdin => $encrypted_data};
     chomp $output->{stdout};
+
     return $output->{stdout};
 }
 
