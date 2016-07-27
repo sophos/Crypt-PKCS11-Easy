@@ -1,6 +1,8 @@
 package CommonTest;
 
 use v5.16.3;
+use Archive::Tar;
+use File::chdir;
 use Test::Roo::Role;
 use Test::TempDir::Tiny;
 use Path::Tiny;
@@ -14,18 +16,13 @@ has workdir => (
 );
 
 has hsm_token_dir => (
-    is      => 'ro',
+    is      => 'lazy',
     clearer => 1,
-    lazy    => 1,
-    default => sub {
-        my $dir = $_[0]->workdir->child('tokens');
-        $dir->mkpath;
-        return $dir;
-    },
 );
 
 has hsm_config => (
     is      => 'ro',
+    lazy    => 1,
     default => sub {
         sprintf "directories.tokendir = %s\nobjectstore.backend = file",
           $_[0]->hsm_token_dir;
@@ -54,42 +51,28 @@ has has_softhsm2 => (
     is      => 'ro',
     lazy    => 1,
     default => sub {
-        return can_run('softhsm2-util');
-    },
-);
-
-has _softhsm_util => (
-    is      => 'ro',
-    lazy    => 1,
-    default => sub {
         my $p = can_run 'softhsm2-util';
-        BAIL_OUT "softhsm2-util not found, cannot continue" unless $p;
-        return path $p;
+        return $p ? path $p : undef;
     },
 );
-
-has _openssl => (
-    is      => 'ro',
-    lazy    => 1,
-    default => sub {
-        my $p = can_run 'openssl';
-        BAIL_OUT "openssl not found, cannot continue" unless $p;
-        return path $p;
-    },
-);
-
-sub BUILD {
-
-    if ($ENV{TEST_DEBUG}) {
-        require Log::Any::Adapter;
-        Log::Any::Adapter->set('Stderr');
-    }
-
-    return;
-}
 
 has pkcs11 =>
   (is => 'rw', lazy => 1, builder => '_build_pkcs11', clearer => 1);
+
+before setup => sub {
+    my $self = shift;
+
+    if ($ENV{TEST_DEBUG}) {
+        require Log::Any::Adapter;
+        Log::Any::Adapter->set('Stderr', log_level => 'debug');
+    }
+};
+
+after each_test => sub {
+    my $self = shift;
+    $self->clear_pkcs11;
+    $self->clear_hsm_token_dir;
+};
 
 sub _build_pkcs11 {
     my $self = shift;
@@ -129,41 +112,17 @@ sub _new_pkcs11 {
     return $obj;
 }
 
-after each_test => sub { shift->clear_pkcs11 };
+sub _build_hsm_token_dir {
+    my $self = shift;
 
-sub init_token {
-    my ($self, $slot, $label) = @_;
-    my @cmd = (
-        $self->_softhsm_util, '--init-token', '--pin', '1234', '--so-pin',
-        '123456', '--slot', $slot, '--label', $label
-    );
+    my $archive = path('t/data/tokens.tar.gz')->absolute;
 
-    run
-      command => \@cmd,
-      verbose => $ENV{TEST_DEBUG},
-      timeout => 10
-      or die "Failed to initialise token";
+    local $CWD = $self->workdir;
 
-    return;
-}
+    diag "Extracting test tokens into $CWD";
+    Archive::Tar->extract_archive($archive);
 
-sub import_key {
-    my ($self, $slot, $key, $label) = @_;
-
-    $key = path 't', 'keys', "$key.pkcs8";
-
-    my @cmd = (
-        $self->_softhsm_util, '--pin', '1234', '--slot', $slot, '--import',
-        $key, '--label', $label, '--id', '0000'
-    );
-
-    run
-      command => \@cmd,
-      verbose => $ENV{TEST_DEBUG},
-      timeout => 10
-      or die "Failed to initialise token";
-
-    return;
+    return path('tokens')->absolute;
 }
 
 sub openssl_sign {
@@ -171,6 +130,20 @@ sub openssl_sign {
     my $openssl_cmd = [$self->_openssl, 'dgst', '-sha1', '-sign', $key_file];
     my $output = run_forked $openssl_cmd,
       {verbose => $ENV{TEST_DEBUG}, child_stdin => $data_file->slurp_raw};
+    chomp $output->{stdout};
+    return $output->{stdout};
+}
+
+sub openssl_verify {
+    my ($self, $key_file, $sig_file, $data_file) = @_;
+
+    my $openssl_cmd = [
+        $self->_openssl, 'dgst',       '-sha1',   '-verify',
+        $key_file,       '-signature', $sig_file, $data_file
+    ];
+    my $output = run_forked $openssl_cmd,
+      {verbose => $ENV{TEST_DEBUG}, child_stdin => $data_file->slurp_raw};
+
     chomp $output->{stdout};
     return $output->{stdout};
 }

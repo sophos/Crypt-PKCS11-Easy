@@ -2,3 +2,5 @@
 Crypt-*
 .tidyall.d
 Changes
+*.der
+author/tokens
