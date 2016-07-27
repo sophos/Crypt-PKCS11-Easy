@@ -4,7 +4,7 @@ use v5.16.3;
 use Test::Roo::Role;
 use Test::TempDir::Tiny;
 use Path::Tiny;
-use IPC::Cmd qw/can_run run run_forked/;
+use IPC::Cmd 0.92 qw/can_run run run_forked/;
 
 has workdir => (
     is      => 'ro',

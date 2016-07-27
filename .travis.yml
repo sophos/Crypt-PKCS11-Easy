@@ -1,24 +1,26 @@
-# addons:
-#   apt:
-#     packages:
-#     - softhsm2
+sudo: required
+dist: trusty
+before_script:
+  - wget https://dist.opendnssec.org/source/softhsm-2.1.0.tar.gz
+  - tar -xvzf softhsm-2.1.0.tar.gz
+  - pushd softhsm-2.1.0 && ./configure --enable-64bit && make -j $(nproc) && sudo make install && popd && sudo mkdir -p /usr/lib64/pkcs11/ && sudo ln -sf /usr/local/lib/softhsm/libsofthsm2.so /usr/lib64/pkcs11/libsofthsm2.so
 language: perl
 perl:
   - "5.16"
   - "5.18"
   - "5.20"
   - "5.22"
+  - "5.24"
   - "dev"
   - "blead"
 env:
   - AUTHOR_TESTING=0
 matrix:
   include:
-    - perl: 5.22
+    - perl: 5.24
       env: COVERAGE=1 AUTHOR_TESTING=0
   allow_failures:
-    - perl: blead       # ignore failures for blead perl
-sudo: false             # faster builds as long as you don't need sudo access
+    - perl: blead       # ignore failures for blead per
 before_install:
   - git config --global user.email "perl-helpers@travis-ci.com"
   - git config --global user.name "Travis Perl Helpers"
