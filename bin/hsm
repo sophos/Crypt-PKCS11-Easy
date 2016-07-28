@@ -48,8 +48,11 @@ if ($opt->{slot_info}) {
 
     my $slots = $hsm->get_slots;
     p $slots;
-    my $mechs = $hsm->get_mechanisms;
-    p $mechs;
+    for my $slot (@$slots) {
+        my $mechs = $hsm->get_mechanisms($slot->{id});
+        p $mechs;
+    }
+
     exit;
 }
 
