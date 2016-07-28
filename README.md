@@ -92,6 +92,6 @@ created for each function.
 
 # SEE ALSO
 
-[PKCS#11 v2.40 Mechanisms](http://docs.oasis-open.org/pkcs11/pkcs11-curr/v2.40/os/pkcs11-curr-v2.40-os.html)
-[Crypt::PKCS11](https://metacpan.org/pod/Crypt::PKCS11)
-[SoftHSM2](https://www.opendnssec.org/softhsm/)
+* [PKCS#11 v2.40 Mechanisms](http://docs.oasis-open.org/pkcs11/pkcs11-curr/v2.40/os/pkcs11-curr-v2.40-os.html)
+* [Crypt::PKCS11](https://metacpan.org/pod/Crypt::PKCS11)
+* [SoftHSM2](https://www.opendnssec.org/softhsm/)
