@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/sophos/Crypt-PKCS11-Easy.svg?branch=master)](https://travis-ci.org/sophos/Crypt-PKCS11-Easy)
-[![Coverage Status](https://coveralls.io/repos/sophos/Crypt-PKCS11-Easy/badge.svg?branch=master)](https://coveralls.io/r/sophos/Crypt-PKCS11-Easy?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/sophos/Crypt-PKCS11-Easy/badge.svg?branch=master)](https://coveralls.io/github/sophos/Crypt-PKCS11-Easy?branch=master)
 [![Kwalitee status](http://cpants.cpanauthors.org/dist/Crypt-PKCS11-Easy.png)](http://cpants.charsbar.org/dist/overview/Crypt-PKCS11-Easy)
 [![GitHub issues](https://img.shields.io/github/issues/sophos/Crypt-PKCS11-Easy.svg)](https://github.com/sophos/Crypt-PKCS11-Easy/issues)
 [![GitHub tag](https://img.shields.io/github/tag/sophos/Crypt-PKCS11-Easy.svg)]()
