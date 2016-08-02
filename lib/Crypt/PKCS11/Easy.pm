@@ -905,16 +905,6 @@ sub get_mechanisms {
 
 __END__
 
-=head1 STATUS
-
-=begin HTML
-
-<div>
-    <a href="https://travis-ci.org/sophos/Crypt-PKCS11-Easy"><img src="https://travis-ci.org/sophos/Crypt-PKCS11-Easy.svg?branch=master"></a>
-</div>
-
-=end HTML
-
 =head1 SYNOPSIS
 
   use Crypt::PKCS11::Easy;
