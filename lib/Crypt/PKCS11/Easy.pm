@@ -17,6 +17,8 @@ use namespace::clean;
 
 use experimental 'smartmatch';
 
+use constant MAX_CHUNK_SIZE => 1024;
+
 =attr C<module>
 
 String. Required.
@@ -798,12 +800,27 @@ sub sign {
         $args{mech}->set_mechanism($self->_default_mech->{sign});
     }
 
+    my $data_len = length $args{data};
+    $log->debug("Attempting to sign $data_len bytes of data");
+
     $self->_session->SignInit($args{mech}, $self->_key)
       or die "Failed to init signing: " . $self->_session->errstr;
 
-    my $sig = $self->_session->Sign($args{data})
-      or die "Failed to sign: " . $self->_session->errstr;
+    if ($data_len < MAX_CHUNK_SIZE) {
+        my $sig = $self->_session->Sign($args{data})
+          or die "Failed to sign: " . $self->_session->errstr;
+        return $sig;
+    }
 
+    # sign data in chunks
+    while (length $args{data}) {
+        my $chunk = substr $args{data}, 0, MAX_CHUNK_SIZE, q{};
+        $self->_session->SignUpdate($chunk)
+          or die "Failed to sign: " . $self->_session->errstr;
+    }
+
+    my $sig = $self->_session->SignFinal
+      or die "Failed to sign: " . $self->_session->errstr;
     return $sig;
 }
 
@@ -856,12 +873,27 @@ sub verify {
         $args{mech}->set_mechanism($self->_default_mech->{verify});
     }
 
+    my $data_len = length $args{data};
+    $log->debug("Attempting to verify $data_len bytes of data");
+
     $self->_session->VerifyInit($args{mech}, $self->_key)
       or die 'Failed to init verify ' . $self->_session->errstr;
 
-    my $v = $self->_session->Verify($args{data}, $args{sig});
+    if ($data_len < MAX_CHUNK_SIZE) {
+        my $v = $self->_session->Verify($args{data}, $args{sig});
+        $log->info($self->_session->errstr) unless $v;
+        return $v;
+    }
 
-    $log->info($self->_session->errstr) unless $v;
+    # verify data in chunks
+    while (length $args{data}) {
+        my $chunk = substr $args{data}, 0, MAX_CHUNK_SIZE, q{};
+        $self->_session->VerifyUpdate($chunk)
+          or die "Failed to verify: " . $self->_session->errstr;
+    }
+
+    my $v = $self->_session->VerifyFinal($args{sig})
+      or die "Failed to verify: " . $self->_session->errstr;
 
     return $v;
 }
