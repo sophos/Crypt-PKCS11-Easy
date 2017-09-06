@@ -51,7 +51,7 @@ has _module => (
         # does module look like a path?
         return path($self->module)->absolute if $self->module =~ m|/|;
 
-        # TODO care about non-linux?
+        # TODO: care about non-linux? id:0
         # just a string, lets try to find a module
         my $module_name = sprintf '%s.so', $self->module;
         my $full_module_path;
@@ -156,7 +156,7 @@ has _key => (is => 'lazy');
 # to keep usage simple, only allowed one session per object
 has _session => (is => 'lazy', predicate => 1);
 
-# TODO allow overriding defaults, possibly using predefined groups of related mechs
+# TODO: allow overriding defaults, possibly using predefined groups of related mechs id:1
 has _default_mech => (
     is      => 'ro',
     default => sub {
@@ -986,7 +986,7 @@ mechanisms for that slot will be retrieved. Otherwise, the slot id in L</slot>
 
 =cut
 
-# TODO might be nice to filter mechanisms by flags, e.g. give me all the mechs
+# TODO: might be nice to filter mechanisms by flags, e.g. give me all the mechs id:2
 # that can be used for singing
 sub get_mechanisms {
     my $self    = shift;
@@ -1028,8 +1028,8 @@ sub encrypt {
         $args{mech}->set_mechanism($self->_default_mech->{encrypt});
     }
 
-    # TODO check key size and size of data to be encrypted and look up max sizes for mechanism
-    # XXX trying to encrypt data that is too big returns a CKR_GENERAL_ERROR, which is super-unhelpful
+    # TODO: check key size and size of data to be encrypted and look up max sizes for mechanism id:3 gh:7
+    # XXX: trying to encrypt data that is too big returns a CKR_GENERAL_ERROR, which is super-unhelpful id:4 gh:7
 
     $self->_session->EncryptInit($args{mech}, $self->_key)
       or die "Failed to init encryption: " . $self->_session->errstr;
