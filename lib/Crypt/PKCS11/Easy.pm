@@ -1,5 +1,5 @@
 package Crypt::PKCS11::Easy;
-
+$Crypt::PKCS11::Easy::VERSION = '0.180080';
 # ABSTRACT: Wrapper around Crypt::PKCS11 to make using a HSM not suck
 
 use v5.16.3;    # CentOS7
@@ -19,19 +19,6 @@ use experimental 'smartmatch';
 
 use constant MAX_CHUNK_SIZE => 1024;
 
-=attr C<module>
-
-String. Required.
-
-The name of the PKCS#11 module to use. Either pass the full path to the module,
-or just pass the base name of the library and the rest will be handled
-automagically. e.g.
-
-  libsofthsm2          => /usr/lib64/pkcs11/libsofthsm2.so
-  libCryptoki2_64      => /usr/lib64/pkcs11/libCryptoki2_64.so
-  gnome-keyring-pkcs11 => /usr/lib64/pkcs11/gnome-keyring-pkcs11.so
-
-=cut
 
 has module => (
     is       => 'ro',
@@ -68,74 +55,24 @@ has _module => (
     isa => AbsFile,
 );
 
-=attr C<rw>
-
-Boolean. Controls whether a session will be opened in Read/Write mode or not.
-Defaults to off. Writing is only needed to make modifications to a token or the
-objects on it.
-
-=cut
 
 has rw => (is => 'ro', default => 0);
 
-=attr C<key>
-
-String. The label of the you want to use.
-
-=cut
 
 has key => (is => 'ro', predicate => 1);
 
-=attr C<function>
-
-String. The function that will be performed with this object. Can be 'sign' or
-'verify'. Defaults to 'sign'. It affects how the key can be used. If function is
-sign and you try to verify a signature, the underlying library will return an
-error.
-
-=cut
 
 has function => (is => 'ro', default => 'sign');
 
-=attr C<slot>
-
-Integer. The id number of the slot to use.
-
-=cut
 
 has slot => (is => 'lazy');
 
-=attr C<token>
-
-String. Instead of specifying the L</slot>, find and use the slot that contains
-a token with this label.
-
-=cut
 
 has token => (is => 'ro', predicate => 1);
 
-=attr C<pin>
-
-String, Coderef or L<Path::Tiny> object. This is either the PIN/password required
-to access a token, a coderef that returns it, or a file that contains it.
-
- use IO::Prompter;
- $pin = sub { prompt 'Enter PIN: ', -echo=>'*' };
-
- use Path::Tiny;
- $pin = path '/secure/file/with/password'
-
- $pin = '1234';
-
-=cut
 
 has pin => (is => 'ro', required => 0);
 
-=attr C<module_dirs>
-
-Array of paths to check for PKCS#11 modules.
-
-=cut
 
 has module_dirs => (
     is      => 'ro',
@@ -359,13 +296,6 @@ sub _clean_hash_values {
     return;
 }
 
-=method C<get_info>
-
-Returns a hashref containing basic info about the PKCS#11 implementation,
-currently the manufacturer, library description and Cryptoki version that is
-implemented.
-
-=cut
 
 sub get_info {
     my $self = shift;
@@ -379,12 +309,6 @@ sub get_info {
     return $info;
 }
 
-=method C<get_token_info(Int $slot_id)>
-
-Returns a hashref containing details on the token in slot identified by
-C<$slot_id>.
-
-=cut
 
 sub get_token_info {
     my ($self, $slot_id) = @_;
@@ -405,18 +329,6 @@ sub get_token_info {
     return $token;
 }
 
-=method C<get_slot(id => $int | token => $string)>
-
-Returns a hashref containing details on the slot identified by C<$id> B<OR> the
-slot which contains a C<token> with the label C<$string>. If a token is present
-in the slot, its details will also be retrieved.
-
-  my $slot = $pkcs11->get_slot(id => 1);
-
-  my $slot = $pkcs11->get_slot(token => 'Build Signer');
-  say $slot->{token}->{serialNumber};
-
-=cut
 
 sub get_slot {
     my ($self, %arg) = @_;
@@ -489,14 +401,6 @@ sub get_slot {
     return $slot;
 }
 
-=method C<get_slots(Bool $with_token?)>
-
-Returns an arrayref of all visible slots. Each element in the array will
-be a hashref returned by L</get_slot>.
-
-If C<$with_token> is true then only slots that contain a token will be returned.
-
-=cut
 
 sub get_slots {
     my ($self, $with_token) = @_;
@@ -513,12 +417,6 @@ sub get_slots {
     return \@slots;
 }
 
-=method C<login>
-
-Attempts to login to the HSM. In most use cases, this will be handled
-automatically when needed.
-
-=cut
 
 sub login {
     my $self = shift;
@@ -571,14 +469,6 @@ sub _get_key {
     return shift @$objects;
 }
 
-=method C<get_signing_key(Str $label)>
-
-Will look for a key matching with a label matching C<$label> which can be used
-for signing.
-
-The returned key is a L<Crypt::PKCS11::Object>.
-
-=cut
 
 sub get_signing_key {
     my ($self, $label) = @_;
@@ -591,13 +481,6 @@ sub get_signing_key {
     return $self->_get_key($label, $tmpl);
 }
 
-=method C<get_verification_key(Str $label)>
-
-Will look for a key matching with a label matching C<$label> which can be used
-for signature verification.
-
-The returned key is a L<Crypt::PKCS11::Object>.
-=cut
 
 sub get_verification_key {
     my ($self, $label) = @_;
@@ -610,14 +493,6 @@ sub get_verification_key {
     return $self->_get_key($label, $tmpl);
 }
 
-=method C<get_encryption_key(Str $label)>
-
-Will look for a key matching with a label matching C<$label> which can be used
-for encryption.
-
-The returned key is a L<Crypt::PKCS11::Object>.
-
-=cut
 
 sub get_encryption_key {
     my ($self, $label) = @_;
@@ -777,18 +652,6 @@ sub _handle_common_args {
     return;
 }
 
-=method C<sign((data => 'some data' | file => '/path'), mech => 'RSA_PKCS'?)>
-
-Returns a binary signature. The data to be signed is either passed as a scalar
-in C<data>, or in C<file> which can be a string path or a L<Path::Tiny> object.
-
-A PKCS#11 mechanism can optionally be specified as a string and without the
-leading 'CKM_'.
-
-  my $sig = $hsm->sign(file => $file, mech => 'RSA_PKCS');
-  my $sig = $hsm->sign(data => 'SIGN ME');
-
-=cut
 
 sub sign {
     my ($self, %args) = @_;
@@ -824,20 +687,6 @@ sub sign {
     return $sig;
 }
 
-=method C<sign_and_encode(...)>
-
-Wrapper around L</sign> which will return the signature data as base64 PEM, e.g.
-
-  -----BEGIN SIGNATURE-----
-  YHXMbvdWyUXeNvgfMzQA+9FjytOWPZCik/H3GS6t72xtk1gvHNfQpKdURKvgBeJM
-  QdUJ7ceujzGX5v/UJRJ4oSpLLiptn2BYaeAn/gUg7yKDFg4YuVN7RU7MbrN2jjlw
-  RfKHq6h6G4FP8LJz5jQWlKKIPoiJ2g3a9M7dq0+hG/kPOv4pBLm7G30uaiSpi/3O
-  hhV+aw87HB7H7i09NSIHoWRxXqw8BeFse7jWTjbj5X1j9uNxD+W6+sxyERawfqFP
-  3WuzDIcD8kgMA7cM7a6z+h1bEgUt2FUKGytcTX4ymAz9+aS+u24V81mg0Ia3pZQd
-  Pth2532FY0z+Ajn3GojNVw==
-  -----END SIGNATURE-----
-
-=cut
 
 sub sign_and_encode {
     my $self = shift;
@@ -852,15 +701,6 @@ sub sign_and_encode {
 
 }
 
-=method C<verify((data => 'some data' | file => '/path'), sig => $sig, mech => 'RSA_PKCS'?)>
-
-Verifies a signature. Parameters are the same as L</sign>, and also requires
-a binary signature. Returns true or false.
-
-  $hsm->verify(file => $file_to_check, sig => $binary_sig, mech => 'RSA_PKCS')
-      or die "Signature verification failed!\n";
-
-=cut
 
 sub verify {
     my ($self, %args) = @_;
@@ -898,13 +738,6 @@ sub verify {
     return $v;
 }
 
-=method C<digest((data => 'some data' | file => '/path'), mech => 'SHA_1'?)>
-
-Returns a binary digest. Parameters are the same as L</sign>.
-
-  $hsm->digest(file => $file_to_check, mech => 'RSA_PKCS')
-
-=cut
 
 sub digest {
     my ($self, %args) = @_;
@@ -927,15 +760,6 @@ sub digest {
 # This shouldn't be here, it's not HSM specific.
 # Also, CPAN must surely have a cert/key loading module
 
-=method C<decode_signature((data => 'some data' | file => '/path'))>
-
-Verifies a signature. Parameters are the same as L</sign>, and also requires
-a binary signature. Returns true or false.
-
-  $hsm->verify(file => $file_to_check, sig => $binary_sig, mech => 'RSA_PKCS')
-      or die "Signature verification failed!\n";
-
-=cut
 
 sub decode_signature {
     my ($self, %args) = @_;
@@ -952,13 +776,6 @@ sub decode_signature {
     return MIME::Base64::decode_base64($1);
 }
 
-=method C<get_mechanism_info($mech, $slot_id?)>
-
-Will return a details of a mechanism as a hashref. If a slot id is specifed, the
-mechanisms for that slot will be retrieved. Otherwise, the slot id in L</slot>
- will be used if there is one.
-
-=cut
 
 sub get_mechanism_info {
     my ($self, $mech, $slot_id) = @_;
@@ -978,13 +795,6 @@ sub get_mechanism_info {
     return $mech_info;
 }
 
-=method C<get_mechanisms($slot_id?)>
-
-Will return a hashref of available mechanisms. If a slot id is specifed, the
-mechanisms for that slot will be retrieved. Otherwise, the slot id in L</slot>
- will be used if there is one.
-
-=cut
 
 # TODO might be nice to filter mechanisms by flags, e.g. give me all the mechs
 # that can be used for singing
@@ -1005,18 +815,6 @@ sub get_mechanisms {
     return \%mech;
 }
 
-=method C<encrypt((data => 'some data' | file => '/path'), mech => 'RSA_PKCS'?)>
-
-Returns encrypted data. The data to be encrypted is either passed as a scalar
-in C<data>, or in C<file> which can be a string path or a L<Path::Tiny> object.
-
-A PKCS#11 mechanism can optionally be specified as a string and without the
-leading 'CKM_'.
-
-  my $encrypted_data = $hsm->sign(file => $file, mech => 'RSA_PKCS');
-  my $encrypted_data = $hsm->sign(data => 'SIGN ME');
-
-=cut
 
 sub encrypt {
     my ($self, %args) = @_;
@@ -1044,6 +842,18 @@ sub encrypt {
 
 __END__
 
+=pod
+
+=encoding UTF-8
+
+=head1 NAME
+
+Crypt::PKCS11::Easy - Wrapper around Crypt::PKCS11 to make using a HSM not suck
+
+=head1 VERSION
+
+version 0.180080
+
 =head1 SYNOPSIS
 
   use Crypt::PKCS11::Easy;
@@ -1063,17 +873,6 @@ __END__
 
   $hsm->verify(file => $data_file, sig => $binary_signature)
     or die "VERIFICATION FAILED\n";
-
-=head1 DIAGNOSTICS
-
-C<Crypt::PKCS11::Easy> uses L<Log::Any> for logging. To see debug output on
-C<STDOUT>, for example, in your application use:
-
-    use Log::Any::Adapter 'Stdout', log_level => 'debug';
-
-=head1 ERRORS
-
-Unless stated otherwise, methods will die when encountering an error.
 
 =head1 DESCRIPTION
 
@@ -1135,12 +934,205 @@ for one function, e.g. signing OR verifying, and cannot be set to use a
 different key or a different token after instantiation. A new object should be
 created for each function.
 
+=head1 ATTRIBUTES
+
+=head2 C<module>
+
+String. Required.
+
+The name of the PKCS#11 module to use. Either pass the full path to the module,
+or just pass the base name of the library and the rest will be handled
+automagically. e.g.
+
+  libsofthsm2          => /usr/lib64/pkcs11/libsofthsm2.so
+  libCryptoki2_64      => /usr/lib64/pkcs11/libCryptoki2_64.so
+  gnome-keyring-pkcs11 => /usr/lib64/pkcs11/gnome-keyring-pkcs11.so
+
+=head2 C<rw>
+
+Boolean. Controls whether a session will be opened in Read/Write mode or not.
+Defaults to off. Writing is only needed to make modifications to a token or the
+objects on it.
+
+=head2 C<key>
+
+String. The label of the you want to use.
+
+=head2 C<function>
+
+String. The function that will be performed with this object. Can be 'sign' or
+'verify'. Defaults to 'sign'. It affects how the key can be used. If function is
+sign and you try to verify a signature, the underlying library will return an
+error.
+
+=head2 C<slot>
+
+Integer. The id number of the slot to use.
+
+=head2 C<token>
+
+String. Instead of specifying the L</slot>, find and use the slot that contains
+a token with this label.
+
+=head2 C<pin>
+
+String, Coderef or L<Path::Tiny> object. This is either the PIN/password required
+to access a token, a coderef that returns it, or a file that contains it.
+
+ use IO::Prompter;
+ $pin = sub { prompt 'Enter PIN: ', -echo=>'*' };
+
+ use Path::Tiny;
+ $pin = path '/secure/file/with/password'
+
+ $pin = '1234';
+
+=head2 C<module_dirs>
+
+Array of paths to check for PKCS#11 modules.
+
+=head1 METHODS
+
+=head2 C<get_info>
+
+Returns a hashref containing basic info about the PKCS#11 implementation,
+currently the manufacturer, library description and Cryptoki version that is
+implemented.
+
+=head2 C<get_token_info(Int $slot_id)>
+
+Returns a hashref containing details on the token in slot identified by
+C<$slot_id>.
+
+=head2 C<get_slot(id => $int | token => $string)>
+
+Returns a hashref containing details on the slot identified by C<$id> B<OR> the
+slot which contains a C<token> with the label C<$string>. If a token is present
+in the slot, its details will also be retrieved.
+
+  my $slot = $pkcs11->get_slot(id => 1);
+
+  my $slot = $pkcs11->get_slot(token => 'Build Signer');
+  say $slot->{token}->{serialNumber};
+
+=head2 C<get_slots(Bool $with_token?)>
+
+Returns an arrayref of all visible slots. Each element in the array will
+be a hashref returned by L</get_slot>.
+
+If C<$with_token> is true then only slots that contain a token will be returned.
+
+=head2 C<login>
+
+Attempts to login to the HSM. In most use cases, this will be handled
+automatically when needed.
+
+=head2 C<get_signing_key(Str $label)>
+
+Will look for a key matching with a label matching C<$label> which can be used
+for signing.
+
+The returned key is a L<Crypt::PKCS11::Object>.
+
+=head2 C<get_verification_key(Str $label)>
+
+Will look for a key matching with a label matching C<$label> which can be used
+for signature verification.
+
+The returned key is a L<Crypt::PKCS11::Object>.
+
+=head2 C<get_encryption_key(Str $label)>
+
+Will look for a key matching with a label matching C<$label> which can be used
+for encryption.
+
+The returned key is a L<Crypt::PKCS11::Object>.
+
+=head2 C<sign((data => 'some data' | file => '/path'), mech => 'RSA_PKCS'?)>
+
+Returns a binary signature. The data to be signed is either passed as a scalar
+in C<data>, or in C<file> which can be a string path or a L<Path::Tiny> object.
+
+A PKCS#11 mechanism can optionally be specified as a string and without the
+leading 'CKM_'.
+
+  my $sig = $hsm->sign(file => $file, mech => 'RSA_PKCS');
+  my $sig = $hsm->sign(data => 'SIGN ME');
+
+=head2 C<sign_and_encode(...)>
+
+Wrapper around L</sign> which will return the signature data as base64 PEM, e.g.
+
+  -----BEGIN SIGNATURE-----
+  YHXMbvdWyUXeNvgfMzQA+9FjytOWPZCik/H3GS6t72xtk1gvHNfQpKdURKvgBeJM
+  QdUJ7ceujzGX5v/UJRJ4oSpLLiptn2BYaeAn/gUg7yKDFg4YuVN7RU7MbrN2jjlw
+  RfKHq6h6G4FP8LJz5jQWlKKIPoiJ2g3a9M7dq0+hG/kPOv4pBLm7G30uaiSpi/3O
+  hhV+aw87HB7H7i09NSIHoWRxXqw8BeFse7jWTjbj5X1j9uNxD+W6+sxyERawfqFP
+  3WuzDIcD8kgMA7cM7a6z+h1bEgUt2FUKGytcTX4ymAz9+aS+u24V81mg0Ia3pZQd
+  Pth2532FY0z+Ajn3GojNVw==
+  -----END SIGNATURE-----
+
+=head2 C<verify((data => 'some data' | file => '/path'), sig => $sig, mech => 'RSA_PKCS'?)>
+
+Verifies a signature. Parameters are the same as L</sign>, and also requires
+a binary signature. Returns true or false.
+
+  $hsm->verify(file => $file_to_check, sig => $binary_sig, mech => 'RSA_PKCS')
+      or die "Signature verification failed!\n";
+
+=head2 C<digest((data => 'some data' | file => '/path'), mech => 'SHA_1'?)>
+
+Returns a binary digest. Parameters are the same as L</sign>.
+
+  $hsm->digest(file => $file_to_check, mech => 'RSA_PKCS')
+
+=head2 C<decode_signature((data => 'some data' | file => '/path'))>
+
+Verifies a signature. Parameters are the same as L</sign>, and also requires
+a binary signature. Returns true or false.
+
+  $hsm->verify(file => $file_to_check, sig => $binary_sig, mech => 'RSA_PKCS')
+      or die "Signature verification failed!\n";
+
+=head2 C<get_mechanism_info($mech, $slot_id?)>
+
+Will return a details of a mechanism as a hashref. If a slot id is specifed, the
+mechanisms for that slot will be retrieved. Otherwise, the slot id in L</slot>
+ will be used if there is one.
+
+=head2 C<get_mechanisms($slot_id?)>
+
+Will return a hashref of available mechanisms. If a slot id is specifed, the
+mechanisms for that slot will be retrieved. Otherwise, the slot id in L</slot>
+ will be used if there is one.
+
+=head2 C<encrypt((data => 'some data' | file => '/path'), mech => 'RSA_PKCS'?)>
+
+Returns encrypted data. The data to be encrypted is either passed as a scalar
+in C<data>, or in C<file> which can be a string path or a L<Path::Tiny> object.
+
+A PKCS#11 mechanism can optionally be specified as a string and without the
+leading 'CKM_'.
+
+  my $encrypted_data = $hsm->sign(file => $file, mech => 'RSA_PKCS');
+  my $encrypted_data = $hsm->sign(data => 'SIGN ME');
+
+=head1 DIAGNOSTICS
+
+C<Crypt::PKCS11::Easy> uses L<Log::Any> for logging. To see debug output on
+C<STDOUT>, for example, in your application use:
+
+    use Log::Any::Adapter 'Stdout', log_level => 'debug';
+
+=head1 ERRORS
+
+Unless stated otherwise, methods will die when encountering an error.
+
 =head1 PKCS#11 MECHANISMS
 
 The default mechanisms are:
 
-=for :list
-* Signing
+=for :list * Signing
 C<CKM_SHA1_RSA_PKCS>
 * Digesting
 C<CKM_SHA1>
@@ -1150,3 +1142,16 @@ C<CKM_SHA1>
 L<PKCS#11 v2.40 Mechanisms|http://docs.oasis-open.org/pkcs11/pkcs11-curr/v2.40/os/pkcs11-curr-v2.40-os.html>
 L<Crypt::PKCS11>
 L<SoftHSM2|https://www.opendnssec.org/softhsm/>
+
+=head1 AUTHOR
+
+Ioan Rogers <ioan.rogers@sophos.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2018 by Sophos Ltd.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
