@@ -95,3 +95,8 @@ created for each function.
 * [PKCS#11 v2.40 Mechanisms](http://docs.oasis-open.org/pkcs11/pkcs11-curr/v2.40/os/pkcs11-curr-v2.40-os.html)
 * [Crypt::PKCS11](https://metacpan.org/pod/Crypt::PKCS11)
 * [SoftHSM2](https://www.opendnssec.org/softhsm/)
+
+Project archive:
+
+This repository has been formally archived, the project supporting it has been closed and no future updates will be made.
+The code will remain available for a period of time until and unless the owner decides to withdraw it.
